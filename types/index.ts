@@ -34,6 +34,7 @@ export interface QuizAttempt {
   questionId: string;
   selectedOptionId: string | null;
   isCorrect: boolean | null;
+  correctOnFirstTry: boolean; 
   attempts: number;
   hintsUsed: number;
   completed: boolean;
@@ -51,20 +52,28 @@ export interface ObjectiveQuizState {
 export interface QuizState {
   currentObjectiveIndex: number;
   objectives: ObjectiveQuizState[];
-  totalCorrect: number;
+
+  totalFirstTryCorrect: number;
+
+  totalEventuallyCorrect: number;
   totalQuestions: number;
   startedAt: string;
 }
 
 export interface SessionResult {
-  totalCorrect: number;
+  firstTryCorrect: number;
+
+  eventuallyCorrect: number;
   totalQuestions: number;
+
   scorePercent: number;
   objectiveScores: Array<{
     objectiveTitle: string;
-    correct: number;
+    firstTryCorrect: number;
+    eventuallyCorrect: number;
     total: number;
     scorePercent: number;
+    avgAttempts: number;
   }>;
   studyTips: string[];
   overallFeedback: string;
@@ -79,25 +88,4 @@ export interface SessionState {
   planApproved: boolean;
   quizState: QuizState | null;
   sessionResult: SessionResult | null;
-}
-
-export interface RenderQuizPayload {
-  sessionId: string;
-  question: MCQQuestion;
-  objectiveTitle: string;
-  objectiveIndex: number;
-  totalObjectives: number;
-  questionIndex: number;
-  totalQuestionsInObjective: number;
-}
-
-export interface RenderPlanPayload {
-  sessionId: string;
-  plan: LearningPlan;
-  pdfFileName: string;
-}
-
-export interface RenderSummaryPayload {
-  sessionId: string;
-  result: SessionResult;
 }

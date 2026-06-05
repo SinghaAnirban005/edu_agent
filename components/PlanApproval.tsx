@@ -3,11 +3,13 @@
 import React from "react";
 import type { LearningPlan } from "@/types";
 
+import { useCopilotReadable, useCopilotAction } from "@copilotkit/react-core";
+
 interface PlanApprovalProps {
   plan: LearningPlan;
   pdfFileName: string;
-  onApprove: () => void;
-  onReject: () => void;
+  onApprove: () => void | Promise<void>;
+  onReject: () => void | Promise<void>;
   loading: boolean;
 }
 
@@ -25,6 +27,46 @@ export function PlanApproval({
   loading,
 }: PlanApprovalProps) {
   const diff = difficultyConfig[plan.overallDifficulty];
+
+  useCopilotReadable({
+    description:
+      "The current learning plan the user is reviewing. " +
+      "It was generated from the uploaded PDF and is awaiting approval or rejection.",
+    value: {
+      summary: plan.summary,
+      overallDifficulty: plan.overallDifficulty,
+      estimatedMinutes: plan.estimatedMinutes,
+      objectives: plan.objectives.map((obj) => ({
+        id: obj.id,
+        title: obj.title,
+        description: obj.description,
+        difficulty: obj.difficulty,
+        keyTopics: obj.keyTopics,
+      })),
+    },
+  });
+
+  useCopilotAction({
+    name: "approveLearningPlan",
+    description:
+      "Approves the current learning plan and starts the quiz / learning session. " +
+      "Call this when the user confirms they are happy with the plan and want to proceed.",
+    parameters: [],
+    handler: async () => {
+      await onApprove();
+    },
+  });
+
+  useCopilotAction({
+    name: "rejectLearningPlan",
+    description:
+      "Cancels / rejects the current learning plan and returns the user to the " +
+      "upload screen so they can start over with a different document.",
+    parameters: [],
+    handler: async () => {
+      await onReject();
+    },
+  });
 
   return (
     <div className="w-full max-w-2xl mx-auto space-y-4">

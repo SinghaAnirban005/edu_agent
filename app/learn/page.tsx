@@ -1,33 +1,17 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from "react";
-import {
-  CopilotKit,
-  useCopilotChat,
-  useCopilotAction,
-  useCopilotReadable
-} from "@copilotkit/react-core";
-import { CopilotChat } from "@copilotkit/react-ui";
+import { CopilotKit } from "@copilotkit/react-core";
+import { CopilotPopup } from "@copilotkit/react-ui";
 import "@copilotkit/react-ui/styles.css";
 
 import { UploadZone } from "@/components/UploadZone";
 import { PlanApproval } from "@/components/PlanApproval";
 import { QuizWidget } from "@/components/QuizWidget";
 import { SessionSummary } from "@/components/SessionSummary";
-import type {
-  LearningPlan,
-  QuizState,
-  SessionResult,
-  MCQQuestion,
-  ObjectiveQuizState,
-} from "@/types";
+import type { LearningPlan, QuizState, SessionResult, MCQQuestion } from "@/types";
 
-type AppPhase =
-  | "upload"
-  | "plan_approval"
-  | "quiz_initializing"
-  | "quiz_active"
-  | "summary";
+type AppPhase = "upload" | "plan_approval" | "quiz_active" | "summary";
 
 interface ActiveQuestion {
   question: MCQQuestion;
@@ -38,7 +22,7 @@ interface ActiveQuestion {
   objectiveTitle: string;
 }
 
-function LearningApp() {
+function LearnApp() {
   const [phase, setPhase] = useState<AppPhase>("upload");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [pdfFileName, setPdfFileName] = useState<string>("");
@@ -50,30 +34,17 @@ function LearningApp() {
   const [activeQuestion, setActiveQuestion] = useState<ActiveQuestion | null>(null);
   const [sessionResult, setSessionResult] = useState<SessionResult | null>(null);
 
-  const [lessonContent, setLessonContent] = useState("");
-  const [structuredContent, setStructuredContent] = useState<any>(null);
-
-  console.log(learningPlan)
-  console.log(activeQuestion)
-
-  console.log(phase)
-
   useEffect(() => {
     if (!quizState) return;
     const objIdx = quizState.currentObjectiveIndex;
     const obj = quizState.objectives[objIdx];
     if (!obj) return;
-
-    const question = obj.questions.find(
-      (q) => !obj.attempts[q.id]?.completed
-    );
+    const question = obj.questions.find((q) => !obj.attempts[q.id]?.completed);
     if (!question) return;
-
-    const qIdx = obj.questions.indexOf(question);
     setActiveQuestion({
       question,
       objectiveIndex: objIdx,
-      questionIndex: qIdx,
+      questionIndex: obj.questions.indexOf(question),
       totalObjectives: quizState.objectives.length,
       totalInObjective: obj.questions.length,
       objectiveTitle: obj.objectiveTitle,
@@ -83,28 +54,15 @@ function LearningApp() {
   const handleUpload = useCallback(async (file: File) => {
     setUploadError(null);
     setUploadLoading(true);
-
     try {
       const formData = new FormData();
       formData.append("file", file);
-
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
       const data = await res.json();
-
-      if (!res.ok) {
-        setUploadError(data.error ?? "Upload failed. Please try again.");
-        return;
-      }
-
+      if (!res.ok) { setUploadError(data.error ?? "Upload failed."); return; }
       setSessionId(data.sessionId);
       setPdfFileName(file.name);
       setLearningPlan(data.plan);
-      setLessonContent(data.lessonContent ?? "");
-      setStructuredContent(data.structuredContent ?? null);
       setPhase("plan_approval");
     } catch {
       setUploadError("Network error. Please check your connection and try again.");
@@ -116,21 +74,14 @@ function LearningApp() {
   const handleApprove = useCallback(async () => {
     if (!sessionId) return;
     setApprovalLoading(true);
-
     try {
       const res = await fetch("/api/workflow/resume", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId, action: "approve" }),
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        console.error("Approval failed:", data.error);
-        return;
-      }
-
+      if (!res.ok) { console.error("Approval failed:", data.error); return; }
       setQuizState(data.quizState);
       setPhase("quiz_active");
     } catch (err) {
@@ -154,13 +105,10 @@ function LearningApp() {
   }, [sessionId]);
 
   const handleQuizComplete = useCallback(
-    async (isCorrect: boolean, nextAction: string, explanation: string) => {
-      if (!sessionId || !quizState) return;
-
+    async (_isCorrect: boolean, nextAction: string) => {
+      if (!sessionId) return;
       if (nextAction === "quiz_complete") {
-        const res = await fetch(
-          `/api/workflow/resume?sessionId=${sessionId}`
-        );
+        const res = await fetch(`/api/workflow/resume?sessionId=${sessionId}`);
         const session = await res.json();
         if (session.sessionResult) {
           setSessionResult(session.sessionResult as SessionResult);
@@ -168,18 +116,11 @@ function LearningApp() {
         }
         return;
       }
-
-      if (nextAction === "next_objective" || nextAction === "next_question") {
-        const res = await fetch(
-          `/api/workflow/resume?sessionId=${sessionId}`
-        );
-        const session = await res.json();
-        if (session.quizState) {
-          setQuizState(session.quizState as QuizState);
-        }
-      }
+      const res = await fetch(`/api/workflow/resume?sessionId=${sessionId}`);
+      const session = await res.json();
+      if (session.quizState) setQuizState(session.quizState as QuizState);
     },
-    [sessionId, quizState]
+    [sessionId]
   );
 
   const handleRestart = useCallback(() => {
@@ -193,36 +134,17 @@ function LearningApp() {
     setUploadError(null);
   }, []);
 
-  console.log(lessonContent)
-
-  useCopilotReadable({
-    description: "The uploaded PDF content",
-    value: lessonContent,
-  });
-
-  useCopilotReadable({
-    description: "Document summary and extracted key points",
-    value: structuredContent,
-  });
-
-  useCopilotReadable({
-    description: "Generated learning plan",
-    value: learningPlan,
-  });
-
-  useCopilotReadable({
-    description: "Current quiz state",
-    value: quizState,
-  });
-
-  useCopilotReadable({
-    description: "Current active question",
-    value: activeQuestion,
-  });
+  const phaseSteps: AppPhase[] = ["plan_approval", "quiz_active", "summary"];
+  const phaseLabels: Record<string, string> = {
+    plan_approval: "Review Plan",
+    quiz_active: "Quiz",
+    summary: "Summary",
+  };
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      <div className="max-w-3xl mx-auto px-4 py-8">
+
         <div className="flex items-center justify-between mb-10">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-sky-400 flex items-center justify-center">
@@ -231,146 +153,85 @@ function LearningApp() {
               </svg>
             </div>
             <span className="font-bold text-white tracking-tight">LearnAI</span>
-            <span className="text-[10px] font-mono text-slate-600 uppercase tracking-widest ml-1">
-              Powered by Groq
-            </span>
+            <span className="text-[10px] font-mono text-slate-600 uppercase tracking-widest ml-1">Powered by Groq</span>
           </div>
 
           {phase !== "upload" && (
             <div className="flex items-center gap-2 text-xs text-slate-500 font-mono">
-              {["plan_approval", "quiz_initializing", "quiz_active", "summary"].map(
-                (p, i) => (
+              {phaseSteps.map((p, i) => {
+                const currentIdx = phaseSteps.indexOf(phase);
+                const isDone = currentIdx > i;
+                const isActive = phase === p;
+                return (
                   <React.Fragment key={p}>
-                    {i > 0 && <span>›</span>}
-                    <span
-                      className={
-                        phase === p
-                          ? "text-indigo-400"
-                          : ["plan_approval", "quiz_initializing", "quiz_active", "summary"].indexOf(phase) > i
-                          ? "text-slate-500 line-through"
-                          : "text-slate-700"
-                      }
-                    >
-                      {p === "plan_approval"
-                        ? "Review"
-                        : p === "quiz_initializing"
-                        ? "Init"
-                        : p === "quiz_active"
-                        ? "Quiz"
-                        : "Summary"}
+                    {i > 0 && <span className="text-slate-700">›</span>}
+                    <span className={isActive ? "text-indigo-400" : isDone ? "text-slate-600 line-through" : "text-slate-700"}>
+                      {phaseLabels[p]}
                     </span>
                   </React.Fragment>
-                )
-              )}
+                );
+              })}
             </div>
           )}
         </div>
 
-        <div className="flex gap-6">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-center min-h-[60vh]">
-              {phase === "upload" && (
-                <div className="w-full">
-                  {uploadError && (
-                    <div className="mb-4 max-w-2xl mx-auto p-3 rounded-lg bg-rose-500/10 border border-rose-500/25 text-rose-300 text-sm text-center">
-                      {uploadError}
-                    </div>
-                  )}
-                  <UploadZone onUpload={handleUpload} loading={uploadLoading} />
-                </div>
-              )}
+        <div className="flex items-start justify-center">
+          <div className="w-full">
+            {phase === "upload" && (
+              <>
+                {uploadError && (
+                  <div className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/25 text-rose-300 text-sm text-center">
+                    {uploadError}
+                  </div>
+                )}
+                <UploadZone onUpload={handleUpload} loading={uploadLoading} />
+              </>
+            )}
 
-              {phase === "plan_approval" && learningPlan && (
-                <PlanApproval
-                  plan={learningPlan}
-                  pdfFileName={pdfFileName}
-                  onApprove={handleApprove}
-                  onReject={handleReject}
-                  loading={approvalLoading}
-                />
-              )}
+            {phase === "plan_approval" && learningPlan && (
+              <PlanApproval
+                plan={learningPlan}
+                pdfFileName={pdfFileName}
+                onApprove={handleApprove}
+                onReject={handleReject}
+                loading={approvalLoading}
+              />
+            )}
 
-              {phase === "quiz_active" && activeQuestion && sessionId && (
-                <QuizWidget
-                  key={activeQuestion.question.id}
-                  sessionId={sessionId}
-                  question={activeQuestion.question}
-                  objectiveTitle={activeQuestion.objectiveTitle}
-                  objectiveIndex={activeQuestion.objectiveIndex}
-                  totalObjectives={activeQuestion.totalObjectives}
-                  questionIndex={activeQuestion.questionIndex}
-                  totalQuestionsInObjective={activeQuestion.totalInObjective}
-                  onComplete={handleQuizComplete}
-                />
-              )}
+            {phase === "quiz_active" && activeQuestion && sessionId && (
+              <QuizWidget
+                key={activeQuestion.question.id}
+                sessionId={sessionId}
+                question={activeQuestion.question}
+                objectiveTitle={activeQuestion.objectiveTitle}
+                objectiveIndex={activeQuestion.objectiveIndex}
+                totalObjectives={activeQuestion.totalObjectives}
+                questionIndex={activeQuestion.questionIndex}
+                totalQuestionsInObjective={activeQuestion.totalInObjective}
+                onComplete={handleQuizComplete}
+              />
+            )}
 
-              {phase === "summary" && sessionResult && (
-                <SessionSummary
-                  result={sessionResult}
-                  pdfFileName={pdfFileName}
-                  onRestart={handleRestart}
-                />
-              )}
-            </div>
+            {phase === "summary" && sessionResult && (
+              <SessionSummary
+                result={sessionResult}
+                pdfFileName={pdfFileName}
+                onRestart={handleRestart}
+              />
+            )}
           </div>
-
-          {/* Right: CopilotKit Chat Panel */}
-          {/* {phase !== "upload" && (
-            <div className="w-80 flex-shrink-0">
-              <div className="sticky top-8 rounded-xl border border-white/10 bg-white/2 overflow-hidden h-[75vh] flex flex-col">
-                <div className="px-4 py-3 border-b border-white/8 flex-shrink-0">
-                  <p className="text-xs font-mono uppercase tracking-widest text-slate-500">
-                    AI Tutor
-                  </p>
-                  <p className="text-sm text-white font-medium mt-0.5">
-                    Ask questions about the topic
-                  </p>
-                </div>
-                <div className="flex-1 overflow-hidden">
-                  <CopilotChat
-                    instructions={`
-                      You are an AI tutor helping a student learn from an uploaded PDF.
-
-                      You have access to:
-                      - The PDF content
-                      - The generated learning plan
-                      - Extracted document summary
-                      - Learning objectives
-                      - Current quiz state
-
-                      Always answer using the provided lesson content.
-
-                      Never claim:
-                      - You don't know the lesson
-                      - You lack access to the lesson
-                      - You have a knowledge cutoff
-
-                      The lesson content has already been provided through application state.
-
-                      If the student asks:
-                      - What is this lesson about?
-                      - What are the objectives?
-                      - Summarize this topic.
-
-                      Answer directly using the uploaded document.
-
-                      For quiz questions:
-                      - Never reveal the correct answer.
-                      - Use Socratic guidance.
-                      - Give hints only.
-                      `}
-                    labels={{
-                      title: "AI Tutor",
-                      initial: "Hi! I'm your AI tutor. Ask me anything about the material — I'll help you understand without giving away quiz answers! 🎓",
-                    }}
-                    className="h-full"
-                  />
-                </div>
-              </div>
-            </div>
-          )} */}
         </div>
+
       </div>
+
+      <CopilotPopup
+        instructions="You are a helpful learning assistant. You have access to the user's current learning plan. You can answer questions about it, and you can approve or reject it on their behalf when they ask you to."
+        defaultOpen={false}
+        labels={{
+          title: "LearnAI Assistant",
+          initial: "Hi! I can see your learning plan. Ask me anything about it, or tell me to approve or cancel it.",
+        }}
+      />
     </div>
   );
 }
@@ -378,7 +239,7 @@ function LearningApp() {
 export default function LearnPage() {
   return (
     <CopilotKit runtimeUrl="/api/copilotkit">
-      <LearningApp />
+      <LearnApp />
     </CopilotKit>
   );
 }

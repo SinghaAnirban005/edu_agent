@@ -31,34 +31,49 @@ export function SessionSummary({ result, pdfFileName, onRestart }: SessionSummar
       ? "Good Progress! 👍"
       : "Keep Practicing! 💪";
 
+  const hadRetries = result.eventuallyCorrect > result.firstTryCorrect;
+
   return (
     <div className="w-full max-w-2xl mx-auto space-y-5">
-      {/* Header */}
-      <div className="text-center space-y-1 mb-6">
+      <div className="text-center mb-6">
         <div className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-slate-500 mb-3">
           <div className="w-6 h-px bg-slate-600" />
           Session Complete
           <div className="w-6 h-px bg-slate-600" />
         </div>
-        <h2 className="text-xl font-semibold text-white">
-          {scoreLabel}
-        </h2>
-        <p className="text-sm text-slate-400">
-          You completed the lesson from{" "}
-          <span className="text-slate-300">{pdfFileName}</span>
+        <h2 className="text-xl font-semibold text-white">{scoreLabel}</h2>
+        <p className="text-sm text-slate-400 mt-1">
+          Lesson from <span className="text-slate-300">{pdfFileName}</span>
         </p>
       </div>
 
-      {/* Score Card */}
       <div className={`rounded-xl border bg-gradient-to-b ${scoreBg} p-6 text-center`}>
         <div className={`text-6xl font-bold font-mono ${scoreColor} mb-1`}>
           {result.scorePercent}%
         </div>
-        <p className="text-slate-400 text-sm">
-          {result.totalCorrect} of {result.totalQuestions} correct
+
+        <p className="text-slate-400 text-sm mb-4">
+          First-attempt accuracy &mdash; {result.firstTryCorrect} of {result.totalQuestions} correct on the first try
         </p>
-        <p className="mt-3 text-slate-300 text-sm leading-relaxed max-w-md mx-auto">
+
+        {hadRetries && (
+          <div className="inline-flex items-center gap-2 text-xs text-slate-400 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5">
+            <span className="text-amber-400">↻</span>
+            {result.eventuallyCorrect} of {result.totalQuestions} eventually correct after retries
+          </div>
+        )}
+
+        <p className="mt-4 text-slate-300 text-sm leading-relaxed max-w-md mx-auto">
           {result.overallFeedback}
+        </p>
+      </div>
+
+      <div className="rounded-lg bg-white/3 border border-white/8 px-4 py-3 flex items-start gap-3">
+        <span className="text-indigo-400 text-base flex-shrink-0 mt-0.5">ℹ</span>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          <span className="text-slate-300 font-medium">How scoring works:</span> Your score reflects
+          first-attempt accuracy only. Wrong guesses on retries do not increase your score, but they
+          don't block you from completing the quiz either. The goal is honest recall, not trial-and-error.
         </p>
       </div>
 
@@ -68,25 +83,26 @@ export function SessionSummary({ result, pdfFileName, onRestart }: SessionSummar
             Objective Breakdown
           </p>
         </div>
-        <div className="p-4 space-y-3">
+        <div className="p-4 space-y-4">
           {result.objectiveScores.map((obj, idx) => (
-            <div key={idx} className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-slate-300 font-medium truncate pr-4">
-                  {obj.objectiveTitle}
-                </p>
-                <span
-                  className={`text-sm font-mono font-bold flex-shrink-0 ${
-                    obj.scorePercent >= 80
-                      ? "text-emerald-400"
-                      : obj.scorePercent >= 60
-                      ? "text-amber-400"
-                      : "text-rose-400"
-                  }`}
-                >
-                  {obj.correct}/{obj.total}
-                </span>
+            <div key={idx} className="space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm text-slate-300 font-medium leading-snug">{obj.objectiveTitle}</p>
+                <div className="flex-shrink-0 text-right">
+                  <span
+                    className={`text-sm font-mono font-bold ${
+                      obj.scorePercent >= 80
+                        ? "text-emerald-400"
+                        : obj.scorePercent >= 60
+                        ? "text-amber-400"
+                        : "text-rose-400"
+                    }`}
+                  >
+                    {obj.scorePercent}%
+                  </span>
+                </div>
               </div>
+
               <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-700 ${
@@ -98,6 +114,18 @@ export function SessionSummary({ result, pdfFileName, onRestart }: SessionSummar
                   }`}
                   style={{ width: `${obj.scorePercent}%` }}
                 />
+              </div>
+
+              <div className="flex items-center gap-4 text-[11px] text-slate-500 font-mono">
+                <span>
+                  <span className="text-emerald-400">{obj.firstTryCorrect}</span>/{obj.total} first-try
+                </span>
+                {obj.eventuallyCorrect > obj.firstTryCorrect && (
+                  <span>
+                    <span className="text-amber-400">{obj.eventuallyCorrect}</span>/{obj.total} eventually
+                  </span>
+                )}
+                <span>avg {obj.avgAttempts} attempt{obj.avgAttempts !== 1 ? "s" : ""}/q</span>
               </div>
             </div>
           ))}

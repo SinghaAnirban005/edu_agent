@@ -47,7 +47,7 @@ export const MCQQuestionSchema = z.object({
   difficulty: z.enum(["beginner", "intermediate", "advanced"]),
 });
 
-// Parse & Plan
+// ─── Step 1: Parse & Plan ─────────────────────────────────────────────────────
 
 export async function stepParseAndPlan(sessionId: string): Promise<{
   plan: LearningPlan;
@@ -134,7 +134,6 @@ Return ONLY a valid JSON object with this EXACT shape:
     plan = LearningPlanSchema.parse(parsed);
   } catch (e) {
     console.error("[Workflow] Plan parse error:", e);
-    // Fallback plan
     plan = {
       objectives: [
         {
@@ -178,7 +177,7 @@ Return ONLY a valid JSON object with this EXACT shape:
   return { plan, structuredContent };
 }
 
-// HITL Suspend
+// ─── Step 2: HITL Suspend ─────────────────────────────────────────────────────
 
 export async function stepSuspendForApproval(sessionId: string): Promise<void> {
   await prisma.learningSession.update({
@@ -202,7 +201,7 @@ export async function stepSuspendForApproval(sessionId: string): Promise<void> {
   });
 }
 
-// MCQ Generation
+// ─── Step 3: MCQ Generation ───────────────────────────────────────────────────
 
 export async function generateMCQsForObjective(
   sessionId: string,
@@ -303,6 +302,7 @@ export async function stepInitializeQuiz(sessionId: string): Promise<QuizState> 
         questionId: q.id,
         selectedOptionId: null,
         isCorrect: null,
+        correctOnFirstTry: false,
         attempts: 0,
         hintsUsed: 0,
         completed: false,
@@ -327,7 +327,8 @@ export async function stepInitializeQuiz(sessionId: string): Promise<QuizState> 
   const quizState: QuizState = {
     currentObjectiveIndex: 0,
     objectives: objectiveQuizStates,
-    totalCorrect: 0,
+    totalFirstTryCorrect: 0,
+    totalEventuallyCorrect: 0,
     totalQuestions,
     startedAt: new Date().toISOString(),
   };
@@ -353,8 +354,6 @@ export async function stepInitializeQuiz(sessionId: string): Promise<QuizState> 
   return quizState;
 }
 
-// Quiz State Mutation
-
 export async function submitAnswer(
   sessionId: string,
   questionId: string,
@@ -363,11 +362,7 @@ export async function submitAnswer(
   isCorrect: boolean;
   explanation: string;
   hint: string;
-  nextAction:
-    | "next_question"
-    | "next_objective"
-    | "quiz_complete"
-    | "retry";
+  nextAction: "next_question" | "next_objective" | "quiz_complete" | "retry";
   quizState: QuizState;
 }> {
   let quizState = await getSessionData<QuizState>(sessionId, "quizState");
@@ -377,7 +372,6 @@ export async function submitAnswer(
     });
     quizState = session.quizState as unknown as QuizState;
   }
-
   if (!quizState) throw new Error("Quiz state not found");
 
   const currentObj = quizState.objectives[quizState.currentObjectiveIndex];
@@ -386,6 +380,7 @@ export async function submitAnswer(
 
   const attempt = currentObj.attempts[questionId];
   const isCorrect = selectedOptionId === question.correctOptionId;
+  const isFirstSubmission = attempt.attempts === 0;
 
   attempt.attempts += 1;
   attempt.selectedOptionId = selectedOptionId;
@@ -393,7 +388,15 @@ export async function submitAnswer(
 
   if (isCorrect) {
     attempt.completed = true;
-    quizState.totalCorrect += 1;
+
+    if (isFirstSubmission) {
+      attempt.correctOnFirstTry = true;
+      quizState.totalFirstTryCorrect += 1;
+      quizState.totalEventuallyCorrect += 1;
+    } else {
+      attempt.correctOnFirstTry = false;
+      quizState.totalEventuallyCorrect += 1;
+    }
   }
 
   currentObj.attempts[questionId] = attempt;
@@ -409,17 +412,15 @@ export async function submitAnswer(
 
     if (allQuestionsComplete) {
       currentObj.completed = true;
-      const correctInObj = currentObj.questions.filter(
-        (q) => currentObj.attempts[q.id].isCorrect
+
+      const firstTryInObj = currentObj.questions.filter(
+        (q) => currentObj.attempts[q.id].correctOnFirstTry
       ).length;
       currentObj.score = Math.round(
-        (correctInObj / currentObj.questions.length) * 100
+        (firstTryInObj / currentObj.questions.length) * 100
       );
 
-      if (
-        quizState.currentObjectiveIndex <
-        quizState.objectives.length - 1
-      ) {
+      if (quizState.currentObjectiveIndex < quizState.objectives.length - 1) {
         quizState.currentObjectiveIndex += 1;
         nextAction = "next_objective";
       } else {
@@ -440,12 +441,7 @@ export async function submitAnswer(
     data: {
       sessionId,
       eventType: "answer_submitted",
-      payload: {
-        questionId,
-        selectedOptionId,
-        isCorrect,
-        nextAction,
-      } as any,
+      payload: { questionId, selectedOptionId, isCorrect, isFirstSubmission, nextAction } as any,
     },
   });
 
@@ -458,25 +454,38 @@ export async function submitAnswer(
   };
 }
 
-// Session Summary
-
 export async function generateSessionSummary(
   sessionId: string,
   quizState: QuizState
 ): Promise<SessionResult> {
-  const scorePercent = Math.round(
-    (quizState.totalCorrect / quizState.totalQuestions) * 100
-  );
+  const scorePercent = quizState.totalQuestions > 0
+    ? Math.round((quizState.totalFirstTryCorrect / quizState.totalQuestions) * 100)
+    : 0;
 
   const objectiveScores = quizState.objectives.map((obj) => {
-    const correct = obj.questions.filter(
-      (q) => obj.attempts[q.id]?.isCorrect
+    const firstTryCorrect = obj.questions.filter(
+      (q) => obj.attempts[q.id]?.correctOnFirstTry
     ).length;
+    const eventuallyCorrect = obj.questions.filter(
+      (q) => obj.attempts[q.id]?.completed && obj.attempts[q.id]?.isCorrect
+    ).length;
+    const totalAttempts = obj.questions.reduce(
+      (sum, q) => sum + (obj.attempts[q.id]?.attempts ?? 0),
+      0
+    );
+    const avgAttempts = obj.questions.length > 0
+      ? Math.round((totalAttempts / obj.questions.length) * 10) / 10
+      : 1;
+
     return {
       objectiveTitle: obj.objectiveTitle,
-      correct,
+      firstTryCorrect,
+      eventuallyCorrect,
       total: obj.questions.length,
-      scorePercent: Math.round((correct / obj.questions.length) * 100),
+      scorePercent: obj.questions.length > 0
+        ? Math.round((firstTryCorrect / obj.questions.length) * 100)
+        : 0,
+      avgAttempts,
     };
   });
 
@@ -486,7 +495,8 @@ export async function generateSessionSummary(
 
   const summaryPrompt = `You are a supportive educator summarizing a student's learning session.
 
-OVERALL SCORE: ${scorePercent}% (${quizState.totalCorrect}/${quizState.totalQuestions} correct)
+SCORE: ${scorePercent}% first-try accuracy (${quizState.totalFirstTryCorrect}/${quizState.totalQuestions} correct on first attempt)
+EVENTUALLY CORRECT: ${quizState.totalEventuallyCorrect}/${quizState.totalQuestions} (includes retries)
 WEAK AREAS: ${weakObjectives.length > 0 ? weakObjectives.join(", ") : "None — great performance!"}
 
 Generate personalized study tips and feedback. Return ONLY valid JSON:
@@ -510,12 +520,13 @@ Generate personalized study tips and feedback. Return ONLY valid JSON:
         "Practice with additional examples",
         "Revisit the source material for unclear topics",
       ],
-      overallFeedback: `You scored ${scorePercent}%. Keep practicing to strengthen your understanding.`,
+      overallFeedback: `You scored ${scorePercent}% on first attempts. Keep practicing to sharpen your recall.`,
     };
   }
 
   const result: SessionResult = {
-    totalCorrect: quizState.totalCorrect,
+    firstTryCorrect: quizState.totalFirstTryCorrect,
+    eventuallyCorrect: quizState.totalEventuallyCorrect,
     totalQuestions: quizState.totalQuestions,
     scorePercent,
     objectiveScores,
@@ -536,37 +547,10 @@ Generate personalized study tips and feedback. Return ONLY valid JSON:
     data: {
       sessionId,
       eventType: "session_complete",
-      payload: { scorePercent } as any,
+      payload: { scorePercent, firstTryCorrect: quizState.totalFirstTryCorrect } as any,
     },
   });
 
   return result;
 }
 
-// Hint Generation
-
-export async function generateContextualHint(
-  question: MCQQuestion,
-  userQuestion: string,
-  previousAttempts: number
-): Promise<string> {
-  const prompt = `You are a Socratic tutor helping a student with a quiz question WITHOUT revealing the answer.
-
-QUIZ QUESTION: ${question.question}
-OPTIONS: ${question.options.map((o) => `${o.id}: ${o.text}`).join(", ")}
-STUDENT'S QUESTION: "${userQuestion}"
-PREVIOUS ATTEMPTS: ${previousAttempts}
-
-Provide a helpful hint that:
-1. Guides them toward the correct reasoning WITHOUT stating which option is correct
-2. Addresses their specific question
-3. Encourages them to think critically
-4. Gently reminds them to continue with the quiz when appropriate
-
-Keep the response under 3 sentences. Be warm, encouraging, and pedagogically sound.`;
-
-  return await chatCompletion(
-    [{ role: "user", content: prompt }],
-    { temperature: 0.6, maxTokens: 256, model: "llama-3.1-8b-instant" }
-  );
-}
