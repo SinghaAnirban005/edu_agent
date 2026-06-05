@@ -1,0 +1,117 @@
+/* app/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0a0a0f;
+  --foreground: #f8fafc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* CopilotKit dark theme overrides */
+.copilotKitChat {
+  background: transparent !important;
+  border: none !important;
+  height: 100% !important;
+}
+
+.copilotKitMessages {
+  background: transparent !important;
+}
+
+.copilotKitMessage {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 10px !important;
+  color: #cbd5e1 !important;
+}
+
+.copilotKitUserMessage {
+  background: rgba(99, 102, 241, 0.15) !important;
+  border-color: rgba(99, 102, 241, 0.25) !important;
+  color: #e2e8f0 !important;
+}
+
+.copilotKitInputArea {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 10px !important;
+}
+
+.copilotKitInput {
+  background: transparent !important;
+  color: white !important;
+}
+
+.copilotKitSendButton {
+  background: rgb(99, 102, 241) !important;
+  border-radius: 6px !important;
+}
+
+/* Quiz widget animations */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.quiz-widget {
+  animation: slideIn 0.25s ease-out;
+}
+
+/* Utility */
+.bg-white\/3 {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+.bg-white\/4 {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+.bg-white\/5 {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+.bg-white\/6 {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+.bg-white\/8 {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+.border-white\/3 {
+  border-color: rgba(255, 255, 255, 0.03);
+}
+.border-white\/8 {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.border-white\/12 {
+  border-color: rgba(255, 255, 255, 0.12);
+}
