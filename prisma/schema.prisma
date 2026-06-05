@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model LearningSession {
+  id              String   @id @default(cuid())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  pdfFileName     String
+  rawText         String   @db.Text
+  structuredContent Json
+
+  workflowRunId   String?  @unique
+  workflowStatus  WorkflowStatus @default(PENDING)
+  suspendPayload  Json?
+
+  learningPlan    Json?
+  planApproved    Boolean  @default(false)
+
+  quizState       Json?
+
+  sessionResult   Json?
+
+  @@map("learning_sessions")
+}
+
+model WorkflowSnapshot {
+  id          String   @id @default(cuid())
+  runId       String   @unique
+  sessionId   String
+  snapshot    Json
+  stepId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("workflow_snapshots")
+}
+
+model SessionEvent {
+  id        String   @id @default(cuid())
+  sessionId String
+  eventType String
+  payload   Json
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@map("session_events")
+}
+
+enum WorkflowStatus {
+  PENDING
+  PARSING
+  PLAN_READY
+  SUSPENDED_FOR_APPROVAL
+  APPROVED
+  QUIZ_ACTIVE
+  COMPLETE
+  FAILED
+}
