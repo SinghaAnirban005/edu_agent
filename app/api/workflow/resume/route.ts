@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../src/lib/prisma";
-import { stepInitializeQuiz } from "../../../../src/mastra/workflows";
+import { quizService } from "../../../../src/mastra/workflows";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Initialize quiz
-    const quizState = await stepInitializeQuiz(sessionId);
+    const quizState = await quizService.stepInitializeQuiz(sessionId);
 
     return NextResponse.json({
       success: true,

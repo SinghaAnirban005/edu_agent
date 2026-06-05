@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../src/lib/prisma"
-import { stepParseAndPlan, stepSuspendForApproval } from "../../../src/mastra/workflows";
+import { planService } from "../../../src/mastra/workflows";
 import pdfParse from "pdf-parse";
 
 export const runtime = "nodejs";
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     let plan;
     let structuredContent;
     try {
-      const result = await stepParseAndPlan(session.id);
+      const result = await planService.stepParseAndPlan(session.id);
       plan = result.plan;
       structuredContent = result.structuredContent;
     } catch (err) {
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Suspend for HITL approval
-    await stepSuspendForApproval(session.id);
+    await planService.stepSuspendForApproval(session.id);
 
     return NextResponse.json({
       success: true,

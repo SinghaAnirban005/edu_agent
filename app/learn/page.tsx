@@ -153,7 +153,6 @@ function LearnApp() {
               </svg>
             </div>
             <span className="font-bold text-white tracking-tight">LearnAI</span>
-            <span className="text-[10px] font-mono text-slate-600 uppercase tracking-widest ml-1">Powered by Groq</span>
           </div>
 
           {phase !== "upload" && (

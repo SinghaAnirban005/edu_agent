@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { submitAnswer, generateSessionSummary } from "../../../../src/mastra/workflows";
+import { reportingService } from "../../../../src/mastra/workflows";
+import { quizService } from "../../../../src/mastra/workflows";
 
 export const runtime = "nodejs";
 
@@ -19,10 +20,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await submitAnswer(sessionId, questionId, selectedOptionId);
+    const result = await quizService.submitAnswer(sessionId, questionId, selectedOptionId);
 
     if (result.nextAction === "quiz_complete") {
-      const summary = await generateSessionSummary(
+      const summary = await reportingService.generateSessionSummary(
         sessionId,
         result.quizState
       );
