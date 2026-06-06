@@ -5,7 +5,7 @@ The system implements a strict linear state machine: PDF ingestion triggers a Ma
 
 ---
 
-## 📹 End-to-End System Walkthrough
+## 📹 Video Demo
 
 [![Watch the Walkthrough](https://img.shields.io/badge/▶%20Watch-System%20Walkthrough-blue?style=for-the-badge&logo=youtube)](https://youtu.be/Ea0BltO46Xk)
 
