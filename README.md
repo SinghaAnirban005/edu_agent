@@ -1,4 +1,4 @@
-# AI Learning Agent
+# Edu Agent
 
 
 The system implements a strict linear state machine: PDF ingestion triggers a Mastra workflow that parses, plans, then **suspends itself** inside PostgreSQL until a human approves the generated lesson plan. On approval, the workflow resumes from the exact serialized checkpoint, initializes an MCQ quiz loop across all learning objectives, and tracks every attempt in both Redis (hot path) and Postgres (durable audit). Engineering priority was placed entirely on durable workflow state, context-window efficiency, and deterministic JSON data transport not on UI chrome or authentication scaffolding.
@@ -7,7 +7,7 @@ The system implements a strict linear state machine: PDF ingestion triggers a Ma
 
 ## 📹 End-to-End System Walkthrough
 
-[![Watch the Walkthrough](https://img.shields.io/badge/▶%20Watch-System%20Walkthrough-blue?style=for-the-badge&logo=youtube)](https://your-video-link-here)
+[![Watch the Walkthrough](https://img.shields.io/badge/▶%20Watch-System%20Walkthrough-blue?style=for-the-badge&logo=youtube)](https://youtu.be/Ea0BltO46Xk)
 
 
 ---
@@ -33,10 +33,12 @@ The PDF is parsed exactly once, at the API boundary (`POST /api/upload`), using 
 ## System Architecture Diagram
 
 
+https://github.com/user-attachments/assets/8c990b69-b072-40c7-8bcc-5a7f2940acb5
+
 
 ---
 
-## Component Data-Flow Matrix
+## Component Data Flow Matrix
 
 | Layer / Component | Core Responsibility | Technology |
 |---|---|---|
