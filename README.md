@@ -33,7 +33,7 @@ The PDF is parsed exactly once, at the API boundary (`POST /api/upload`), using 
 ## System Architecture Diagram
 
 
-<img width="950" height="713" alt="Screenshot from 2026-06-06 16-07-53" src="https://github.com/user-attachments/assets/fc9cb6d0-d2ad-4140-b46d-211bd93db7d9" />
+<img width="1030" height="713" alt="Screenshot from 2026-06-06 16-24-49" src="https://github.com/user-attachments/assets/5c1018eb-b6c0-4554-a527-a9a81cdc4120" />
 
 
 ---
