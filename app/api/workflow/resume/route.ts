@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../src/lib/prisma";
-import { quizService } from "../../../../src/mastra/workflows";
+import { mastra } from "@/src/mastra";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -8,6 +8,7 @@ export const maxDuration = 180;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
     const { sessionId, action } = body as {
       sessionId: string;
       action: "approve" | "reject";
@@ -25,7 +26,10 @@ export async function POST(req: NextRequest) {
     });
 
     if (!session) {
-      return NextResponse.json({ error: "Session not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Session not found" },
+        { status: 404 }
+      );
     }
 
     if (session.workflowStatus !== "SUSPENDED_FOR_APPROVAL") {
@@ -37,66 +41,99 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (action === "reject") {
-      await prisma.learningSession.update({
-        where: { id: sessionId },
-        data: { workflowStatus: "FAILED", planApproved: false },
-      });
-      return NextResponse.json({ success: true, status: "REJECTED" });
+    if (!session.workflowRunId) {
+      return NextResponse.json(
+        {
+          error: "No workflow run associated with session",
+        },
+        { status: 409 }
+      );
     }
-
-    await prisma.learningSession.update({
-      where: { id: sessionId },
-      data: {
-        planApproved: true,
-        workflowStatus: "APPROVED",
-      },
-    });
 
     await prisma.sessionEvent.create({
       data: {
         sessionId,
-        eventType: "plan_approved",
+        eventType:
+          action === "approve"
+            ? "plan_approved"
+            : "plan_rejected",
         payload: {} as any,
       },
     });
 
-    // Initialize quiz
-    const quizState = await quizService.stepInitializeQuiz(sessionId);
+    const workflow = mastra.getWorkflow("learningWorkflow");
+
+    const run = await workflow.createRun({
+      runId: session.workflowRunId,
+    });
+
+    await run.resume({
+      resumeData: {
+        approved: action === "approve",
+      },
+    });
+
+    let attempts = 0;
+
+    let updatedSession =
+      await prisma.learningSession.findUniqueOrThrow({
+        where: { id: sessionId },
+      });
+
+    while (
+      updatedSession.workflowStatus !== "QUIZ_ACTIVE" &&
+      updatedSession.workflowStatus !== "FAILED" &&
+      attempts < 60
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      updatedSession =
+        await prisma.learningSession.findUniqueOrThrow({
+          where: { id: sessionId },
+        });
+
+      attempts++;
+    }
 
     return NextResponse.json({
       success: true,
-      status: "QUIZ_ACTIVE",
-      quizState,
+      status: updatedSession.workflowStatus,
+      quizState: updatedSession.quizState,
       currentObjective:
-        quizState.objectives[quizState.currentObjectiveIndex],
+        (updatedSession.quizState as any)?.objectives?.[
+          (updatedSession.quizState as any)?.currentObjectiveIndex ?? 0
+        ],
     });
   } catch (err) {
     console.error("[Resume] Error:", err);
+
     return NextResponse.json(
-      { error: "Failed to resume workflow" },
+      {
+        error: "Failed to resume workflow",
+      },
       { status: 500 }
     );
   }
 }
 
-// GET: Poll session status
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
+
   const sessionId = searchParams.get("sessionId");
 
   if (!sessionId) {
-    return NextResponse.json({ error: "sessionId required" }, { status: 400 });
+    return NextResponse.json(
+      { error: "sessionId required" },
+      { status: 400 }
+    );
   }
 
   const session = await prisma.learningSession.findUnique({
     where: { id: sessionId },
     select: {
       id: true,
-      pdfFileName: true,
       workflowStatus: true,
       learningPlan: true,
-      planApproved: true,
       quizState: true,
       sessionResult: true,
       structuredContent: true,
@@ -104,7 +141,10 @@ export async function GET(req: NextRequest) {
   });
 
   if (!session) {
-    return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Session not found" },
+      { status: 404 }
+    );
   }
 
   return NextResponse.json(session);

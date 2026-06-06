@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "../../../src/lib/prisma"
-import { planService } from "../../../src/mastra/workflows";
 import pdfParse from "pdf-parse";
+
+import { prisma } from "@/src/lib/prisma";
+import { mastra } from "@/src/mastra";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -12,7 +13,10 @@ export async function POST(req: NextRequest) {
     const file = formData.get("file") as File | null;
 
     if (!file) {
-      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+      return NextResponse.json(
+        { error: "No file uploaded" },
+        { status: 400 }
+      );
     }
 
     if (!file.name.toLowerCase().endsWith(".pdf")) {
@@ -33,13 +37,18 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(arrayBuffer);
 
     let rawText: string;
+
     try {
       const pdfData = await pdfParse(buffer);
       rawText = pdfData.text;
     } catch (parseErr) {
       console.error("[Upload] PDF parse error:", parseErr);
+
       return NextResponse.json(
-        { error: "Failed to parse PDF. Please ensure it is a text-based PDF." },
+        {
+          error:
+            "Failed to parse PDF. Please ensure it is a text-based PDF.",
+        },
         { status: 422 }
       );
     }
@@ -75,39 +84,91 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Parse & Plan
-    let plan;
-    let structuredContent;
     try {
-      const result = await planService.stepParseAndPlan(session.id);
-      plan = result.plan;
-      structuredContent = result.structuredContent;
-    } catch (err) {
-      console.error("[Upload] Step 1 failed:", err);
+      const workflow = mastra.getWorkflow("learningWorkflow");
+
+      if (!workflow) {
+        throw new Error("Workflow 'learning-workflow' not found");
+      }
+
+      const run = await workflow.createRun();
+
       await prisma.learningSession.update({
         where: { id: session.id },
-        data: { workflowStatus: "FAILED" },
+        data: {
+          workflowRunId: run.runId,
+        },
       });
+
+      void run.start({
+        inputData: {
+          sessionId: session.id,
+        },
+      });
+
+      let attempts = 0;
+
+      let updatedSession =
+        await prisma.learningSession.findUniqueOrThrow({
+          where: { id: session.id },
+        });
+
+      while (
+        attempts < 60
+      ) {
+        updatedSession =
+          await prisma.learningSession.findUniqueOrThrow({
+            where: { id: session.id },
+          });
+
+        if (
+          updatedSession.workflowStatus === "SUSPENDED_FOR_APPROVAL" &&
+          updatedSession.learningPlan
+        ) {
+          break;
+        }
+
+        await new Promise((r) => setTimeout(r, 1000));
+        attempts++;
+      }
+
+      console.log("Returning", {
+        status: updatedSession.workflowStatus,
+        hasPlan: !!updatedSession.learningPlan,
+      });
+
+      return NextResponse.json({
+        success: true,
+        sessionId: session.id,
+        runId: run.runId,
+        plan: updatedSession.learningPlan,
+        lessonContent: rawText.substring(0, 30000),
+        status: updatedSession.workflowStatus,
+      });
+    } catch (workflowErr) {
+      console.error("[Upload] Workflow start failed:", workflowErr);
+
+      await prisma.learningSession.update({
+        where: { id: session.id },
+        data: {
+          workflowStatus: "FAILED",
+        },
+      });
+
       return NextResponse.json(
-        { error: "Failed to analyze PDF content. Please try again." },
+        {
+          error: "Failed to start learning workflow.",
+        },
         { status: 500 }
       );
     }
-
-    // Suspend for HITL approval
-    await planService.stepSuspendForApproval(session.id);
-
-    return NextResponse.json({
-      success: true,
-      sessionId: session.id,
-      plan,
-      lessonContent: rawText.substring(0, 30000),
-      status: "SUSPENDED_FOR_APPROVAL",
-    });
   } catch (err) {
     console.error("[Upload] Unexpected error:", err);
+
     return NextResponse.json(
-      { error: "An unexpected error occurred. Please try again." },
+      {
+        error: "An unexpected error occurred. Please try again.",
+      },
       { status: 500 }
     );
   }

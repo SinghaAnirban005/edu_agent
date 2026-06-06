@@ -21,6 +21,7 @@
     "@copilotkit/react-ui": "^1.59.4",
     "@copilotkit/runtime": "^1.59.4",
     "@mastra/core": "^1.39.0",
+    "@mastra/pg": "^1.12.1",
     "@prisma/client": "^5.19.1",
     "groq-sdk": "^0.7.0",
     "ioredis": "^5.4.1",
